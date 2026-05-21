@@ -10,13 +10,8 @@ public class InMemoryAccountStore : IAccountStore
         { "ACC2", 5000m }
     };
 
-    private readonly HashSet<string> _processedRequests = new(StringComparer.OrdinalIgnoreCase);
 
     public bool TryGetBalance(string accountId, out decimal balance) => _balances.TryGetValue(accountId, out balance);
-
-    public bool IsRequestProcessed(string requestId) => _processedRequests.Contains(requestId);
-
-    public void MarkRequestProcessed(string requestId) => _processedRequests.Add(requestId);
 
     public void EnsureAccountExists(string accountId)
     {

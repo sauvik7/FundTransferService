@@ -39,7 +39,11 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsOk_WhenRequestIsValid()
     {
-        var service = new TransferService(new InMemoryAccountStore(), new TestOtpValidator());
+        var service = new TransferService(
+            new InMemoryAccountStore(),
+            new TestOtpValidator(),
+            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest();
 
@@ -54,7 +58,11 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenServiceFails()
     {
-        var service = new TransferService(new InMemoryAccountStore(), new TestOtpValidator());
+        var service = new TransferService(
+            new InMemoryAccountStore(),
+            new TestOtpValidator(),
+            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest(requestId: "req-invalid-otp", otp: "000000");
 
@@ -69,7 +77,11 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenModelStateIsInvalid()
     {
-        var service = new TransferService(new InMemoryAccountStore(), new TestOtpValidator());
+        var service = new TransferService(
+            new InMemoryAccountStore(),
+            new TestOtpValidator(),
+            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         controller.ModelState.AddModelError("FromAccount", "Required");
 

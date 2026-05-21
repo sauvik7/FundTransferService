@@ -16,10 +16,15 @@ builder.Services.AddSwaggerGen();
 // Use InMemoryAccountStore for simplicity.
 builder.Services.AddSingleton<IAccountStore, InMemoryAccountStore>();
 
+// Idempotency and fraud services
+builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IIdempotencyStore, FundTransfer.Infrastructure.InMemoryIdempotencyStore>();
+builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IFraudService>(_ => new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+
 // Read OTP secret from configuration.
 builder.Services.AddScoped<IOtpValidator, ConfigOtpValidator>();
 
 builder.Services.AddScoped<TransferService>();
+// TransferService depends on IIdempotencyStore and IFraudService now; DI will resolve them.
 
 var app = builder.Build();
 

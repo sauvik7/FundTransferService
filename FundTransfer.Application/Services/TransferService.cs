@@ -4,21 +4,26 @@ using FundTransfer.Domain.Entities;
 
 namespace FundTransfer.Application.Services
 {
-    public class TransferService(IAccountStore accountStore, IOtpValidator otpValidator)
+    public class TransferService(
+        IAccountStore accountStore,
+        IOtpValidator otpValidator,
+        IIdempotencyStore idempotencyStore,
+        IFraudService fraudService)
     {
         private readonly IAccountStore _accountStore = accountStore;
         private readonly IOtpValidator _otpValidator = otpValidator;
+        private readonly IIdempotencyStore _idempotencyStore = idempotencyStore;
+        private readonly IFraudService _fraudService = fraudService;
 
         public async Task<(bool Success, string? Error)> ProcessAsync(TransferRequest request)
         {
-            // ✅ 1. Basic validation
-            if (string.IsNullOrWhiteSpace(request.FromAccount) ||
-                string.IsNullOrWhiteSpace(request.ToAccount))
+            // Defensive validation for domain invariants (keeps TransferService robust when called directly)
+            if (string.IsNullOrWhiteSpace(request.FromAccount) || string.IsNullOrWhiteSpace(request.ToAccount))
             {
                 return (false, "Invalid account details");
             }
 
-            if (request.FromAccount == request.ToAccount)
+            if (string.Equals(request.FromAccount, request.ToAccount, StringComparison.OrdinalIgnoreCase))
             {
                 return (false, "Sender and receiver cannot be same");
             }
@@ -28,50 +33,43 @@ namespace FundTransfer.Application.Services
                 return (false, "Amount must be greater than zero");
             }
 
-            // ✅ 2. OTP validation (simulated)
+            // Core responsibilities only: OTP verification, idempotency, business rules, and account operations.
+
+            // OTP validation
             if (!_otpValidator.Validate(request.Otp))
             {
                 return (false, "Invalid OTP");
             }
 
-            // ✅ 3. Account existence check
-            if (!_accountStore.TryGetBalance(request.FromAccount, out decimal value))
+            // Account existence
+            if (!_accountStore.TryGetBalance(request.FromAccount, out decimal balance))
             {
                 return (false, "Source account not found");
             }
 
-            // ✅ 4. Balance validation
-            if (value < request.Amount)
+            // Balance validation
+            if (balance < request.Amount)
             {
                 return (false, "Insufficient balance");
             }
 
-            // ✅ 5. Idempotency check (critical for retries)
-            if (_accountStore.IsRequestProcessed(request.RequestId))
+            // Idempotency
+            if (_idempotencyStore.IsProcessed(request.RequestId))
             {
                 return (false, "Duplicate request detected");
             }
 
-            // ✅ 6. Fraud / business rule
-            if (request.Amount > 100000)
+            // Fraud check via injected service
+            if (_fraudService.IsFraudulent(request, out var reason))
             {
-                return (false, "Transaction limit exceeded");
+                return (false, reason);
             }
 
-            // ✅ 7. Simulate transaction creation (domain usage)
-            var transaction = new Transaction
-            {
-                FromAccount = request.FromAccount,
-                ToAccount = request.ToAccount,
-                Amount = request.Amount,
-                RequestId = request.RequestId
-            };
-
+            // Perform transfer
             _accountStore.EnsureAccountExists(request.ToAccount);
             _accountStore.Transfer(request.FromAccount, request.ToAccount, request.Amount);
-            _accountStore.MarkRequestProcessed(request.RequestId);
+            _idempotencyStore.MarkProcessed(request.RequestId);
 
-            // ✅ Simulate async DB call
             await Task.Delay(50);
 
             return (true, null);

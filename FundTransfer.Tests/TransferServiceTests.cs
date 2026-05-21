@@ -10,7 +10,11 @@ public class TransferServiceTests
 
     public TransferServiceTests()
     {
-        _service = new TransferService(new InMemoryAccountStore(), new TestOtpValidator());
+        _service = new TransferService(
+            new InMemoryAccountStore(),
+            new TestOtpValidator(),
+            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
     }
 
     private class TestOtpValidator : FundTransfer.Application.Interfaces.IOtpValidator
