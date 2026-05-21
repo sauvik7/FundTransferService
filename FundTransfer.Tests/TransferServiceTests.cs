@@ -1,9 +1,11 @@
 using FundTransfer.Application.DTOs;
+using FundTransfer.Application.Interfaces;
 using FundTransfer.Application.Services;
 using FundTransfer.Domain.Entities;
 using FundTransfer.Domain.Services;
 using FundTransfer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace FundTransfer.Tests;
 
@@ -108,10 +110,10 @@ public class TransferServiceTests
     {
         var request = CreateRequest(amount: 100, requestId: "req-duplicate");
 
-        var first = await _service.ProcessAsync(request);
+        var (Success, Error) = await _service.ProcessAsync(request);
         var second = await _service.ProcessAsync(request);
 
-        Assert.True(first.Success);
+        Assert.True(Success);
         Assert.False(second.Success);
         Assert.Equal("Duplicate request", second.Error);
     }
@@ -180,5 +182,109 @@ public class TransferServiceTests
 
         Assert.True(Success);
         Assert.Null(Error);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ReturnsFraud_WhenFraudDetected()
+    {
+        var fraudMock = new Mock<IFraudService>();
+
+        fraudMock
+            .Setup(x => x.IsFraudulent(It.IsAny<TransferRequest>(), out It.Ref<string>.IsAny!))
+            .Returns((TransferRequest _, out string reason) =>
+            {
+                reason = "Fraud detected";
+                return true;
+            });
+
+        var service = BuildService(fraudService: fraudMock.Object);
+
+        var result = await service.ProcessAsync(ValidRequest());
+
+        Assert.False(result.Success);
+        Assert.Equal("Fraud detected", result.Error);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ReturnsError_WhenOtpInvalid()
+    {
+        var otp = new Mock<IOtpValidator>();
+        otp.Setup(x => x.Validate(It.IsAny<string>())).Returns(false);
+
+        var service = BuildService(otpValidator: otp.Object);
+
+        var (Success, Error) = await service.ProcessAsync(ValidRequest());
+
+        Assert.False(Success);
+        Assert.Equal("Invalid OTP", Error);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_ReturnsDuplicate_WhenRequestExists()
+    {
+        var idem = new Mock<IIdempotencyStore>();
+        idem.Setup(x => x.ExistsAsync("req1")).ReturnsAsync(true);
+
+        var service = BuildService(idemStore: idem.Object);
+
+        var (Success, Error) = await service.ProcessAsync(ValidRequest());
+
+        Assert.False(Success);
+        Assert.Equal("Duplicate request", Error);
+    }
+
+    private static TransferRequest ValidRequest()
+    {
+        return new TransferRequest
+        {
+            FromAccount = "ACC1",
+            ToAccount = "ACC2",
+            Amount = 100,
+            RequestId = "req1",
+            Otp = "123456"
+        };
+    }
+
+    private static TransferService BuildService(
+    IAccountStore? accountStore = null,
+    IOtpValidator? otpValidator = null,
+    IIdempotencyStore? idemStore = null,
+    IFraudService? fraudService = null,
+    IAuditLogger? auditLogger = null)
+    {
+        accountStore ??= new Mock<IAccountStore>().Object;
+
+        otpValidator ??= Mock.Of<IOtpValidator>(
+            x => x.Validate(It.IsAny<string>()) == true);
+
+        idemStore ??= Mock.Of<IIdempotencyStore>(
+            x => x.ExistsAsync(It.IsAny<string>()) == Task.FromResult(false));
+
+        if (fraudService == null)
+        {
+            var fraudMock = new Mock<IFraudService>();
+
+            fraudMock
+                .Setup(x => x.IsFraudulent(It.IsAny<TransferRequest>(), out It.Ref<string>.IsAny!))
+                .Returns((TransferRequest _, out string reason) =>
+                {
+                    reason = string.Empty;
+                    return false;
+                });
+
+            fraudService = fraudMock.Object;
+        }
+
+        auditLogger ??= new Mock<IAuditLogger>().Object;
+
+        var domainService = new TransferDomainService();
+
+        return new TransferService(
+            accountStore,
+            otpValidator,
+            idemStore,
+            fraudService,
+            auditLogger,
+            domainService);
     }
 }

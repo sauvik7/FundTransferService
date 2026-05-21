@@ -11,7 +11,7 @@ public class TransferService(
     IIdempotencyStore idempotency,
     IFraudService fraud,
     IAuditLogger audit,
-    TransferDomainService domainService)
+    TransferDomainService domainService) : ITransferService
 {
     public async Task<(bool Success, string? Error)> ProcessAsync(TransferRequest request)
     {
@@ -37,7 +37,7 @@ public class TransferService(
 
         try
         {
-            // ✅ All domain execution inside try
+            // ✅ Use injected domain service
             var tx = domainService.Execute(
                 from,
                 to,
@@ -62,19 +62,16 @@ public class TransferService(
         catch (ArgumentException ex)
         {
             await SafeAudit(request, ex);
-
             return (false, ex.Message);
         }
         catch (InvalidOperationException ex)
         {
             await SafeAudit(request, ex);
-
             return (false, ex.Message);
         }
         catch (Exception ex)
         {
             await SafeAudit(request, ex);
-
             throw; // ✅ preserve system errors
         }
     }

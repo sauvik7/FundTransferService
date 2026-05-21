@@ -21,5 +21,8 @@ public class TransferRequestValidator : AbstractValidator<TransferRequest>
 
         RuleFor(x => x.Otp)
             .NotEmpty();
+
+        RuleFor(x => x)
+            .Must(x => x.FromAccount != x.ToAccount);
     }
 }

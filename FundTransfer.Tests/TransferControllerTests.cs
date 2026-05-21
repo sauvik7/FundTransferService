@@ -1,12 +1,14 @@
 using System.Text.Json;
 using FundTransfer.API.Controllers;
 using FundTransfer.Application.DTOs;
+using FundTransfer.Application.Interfaces;
 using FundTransfer.Application.Services;
 using FundTransfer.Domain.Entities;
 using FundTransfer.Domain.Services;
 using FundTransfer.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace FundTransfer.Tests;
 
@@ -96,7 +98,7 @@ public class TransferControllerTests
         var result = await controller.Transfer(request);
 
         // Assert
-        var problem = Assert.IsType<ObjectResult>(result);
+        var problem = Assert.IsType<BadRequestObjectResult>(result);
         Assert.Equal(400, problem.StatusCode);
 
         var json = JsonSerializer.Serialize(problem.Value);
@@ -115,6 +117,46 @@ public class TransferControllerTests
         var result = await controller.Transfer(CreateRequest());
 
         // Assert
-        Assert.IsType<ObjectResult>(result); // ValidationProblem returns ObjectResult
+        Assert.IsType<BadRequestObjectResult>(result); // ValidationProblem returns ObjectResult
     }
+
+    [Fact]
+    public async Task Transfer_ReturnsBadRequest_WhenModelInvalid()
+    {
+        var service = new Mock<ITransferService>();
+        var controller = new TransferController(service.Object);
+
+        controller.ModelState.AddModelError("Amount", "Invalid");
+
+        var result = await controller.Transfer(new TransferRequest());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task Transfer_ReturnsBadRequest_WhenServiceReturnsFailure()
+    {
+        var service = new Mock<ITransferService>();
+        service.Setup(x => x.ProcessAsync(It.IsAny<TransferRequest>()))
+               .ReturnsAsync((false, "error"));
+
+        var controller = new TransferController(service.Object);
+
+        var result = await controller.Transfer(ValidRequest());
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    private static TransferRequest ValidRequest()
+    {
+        return new TransferRequest
+        {
+            FromAccount = "ACC1",
+            ToAccount = "ACC2",
+            Amount = 100,
+            RequestId = "req1",
+            Otp = "123456"
+        };
+    }
+
 }
