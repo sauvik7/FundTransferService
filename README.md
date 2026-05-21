@@ -219,3 +219,19 @@ Request JSON:
   "otp": "123456"
 }
 ```
+---
+
+## Author
+
+**Sauvik Roy** *(<https://www.zensar.com>)*
+
+- GitHub: <https://github.com/sauvik7>  
+- Email: <mailto:sauvik.roy@zensar.com>
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+See the LICENSE file for full details.
