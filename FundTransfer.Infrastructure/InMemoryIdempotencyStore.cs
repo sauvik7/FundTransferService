@@ -1,12 +1,20 @@
+using System.Collections.Concurrent;
 using FundTransfer.Application.Interfaces;
 
 namespace FundTransfer.Infrastructure;
 
 public class InMemoryIdempotencyStore : IIdempotencyStore
 {
-    private readonly HashSet<string> _processed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _store = new();
 
-    public bool IsProcessed(string requestId) => _processed.Contains(requestId);
+    public Task<bool> ExistsAsync(string requestId)
+    {
+        return Task.FromResult(_store.ContainsKey(requestId));
+    }
 
-    public void MarkProcessed(string requestId) => _processed.Add(requestId);
+    public Task MarkProcessedAsync(string requestId)
+    {
+        _store.TryAdd(requestId, 0);
+        return Task.CompletedTask;
+    }
 }

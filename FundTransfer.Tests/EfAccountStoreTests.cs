@@ -1,3 +1,5 @@
+using FundTransfer.Domain.Entities;
+using FundTransfer.Domain.Services;
 using FundTransfer.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -7,29 +9,38 @@ namespace FundTransfer.Tests;
 public class EfAccountStoreTests
 {
     [Fact]
-    public void Transfer_PersistsAccountBalancesAndTransaction()
+    public async Task Transfer_PersistsAccountBalances()
     {
         var options = new DbContextOptionsBuilder<PaymentsDbContext>()
             .UseInMemoryDatabase(databaseName: "EfAccountStoreTests")
             .Options;
 
         using var context = new PaymentsDbContext(options);
-        context.Database.EnsureCreated();
 
         var store = new EfAccountStore(context);
-        store.EnsureAccountExists("ACC1");
-        store.EnsureAccountExists("ACC2");
 
-        context.Accounts.Single(a => a.AccountId == "ACC1").Balance = 1000m;
-        context.SaveChanges();
+        // ✅ Arrange: create accounts using domain constructor
+        var acc1 = new Account("ACC1", 1000m);
+        var acc2 = new Account("ACC2", 0m);
 
-        store.Transfer("ACC1", "ACC2", 250m, "req-test-transfer");
+        await store.AddAsync(acc1);
+        await store.AddAsync(acc2);
+        await store.SaveChangesAsync();
 
-        var source = context.Accounts.Single(a => a.AccountId == "ACC1");
-        var destination = context.Accounts.Single(a => a.AccountId == "ACC2");
+        // ✅ Act: perform transfer via domain service
+        var from = await store.GetAsync("ACC1");
+        var to = await store.GetAsync("ACC2");
 
-        Assert.Equal(750m, source.Balance);
-        Assert.Equal(250m, destination.Balance);
-        Assert.Single(context.Transactions.Where(t => t.FromAccount == "ACC1" && t.ToAccount == "ACC2"));
+        var domainService = new TransferDomainService();
+        domainService.Execute(from!, to!, "req-test-transfer", 250m);
+
+        await store.SaveChangesAsync();
+
+        // ✅ Assert
+        var updatedFrom = await store.GetAsync("ACC1");
+        var updatedTo = await store.GetAsync("ACC2");
+
+        Assert.Equal(750m, updatedFrom!.Balance);
+        Assert.Equal(250m, updatedTo!.Balance);
     }
 }

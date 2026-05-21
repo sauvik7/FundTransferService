@@ -2,6 +2,6 @@ namespace FundTransfer.Application.Interfaces;
 
 public interface IIdempotencyStore
 {
-    bool IsProcessed(string requestId);
-    void MarkProcessed(string requestId);
+    Task<bool> ExistsAsync(string requestId);
+    Task MarkProcessedAsync(string requestId);
 }

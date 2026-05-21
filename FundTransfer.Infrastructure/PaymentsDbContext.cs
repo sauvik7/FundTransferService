@@ -12,32 +12,19 @@ public class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : Db
     {
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasKey(e => e.AccountId);
-            entity.Property(e => e.AccountId)
-                .HasMaxLength(32)
-                .IsRequired();
-            entity.Property(e => e.Balance)
-                .HasPrecision(18, 2)
-                .IsRequired();
+            entity.HasKey(a => a.AccountId);
+            entity.Property(a => a.Balance).IsRequired();
         });
 
         modelBuilder.Entity<Transaction>(entity =>
         {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.FromAccount)
-                .HasMaxLength(32)
-                .IsRequired();
-            entity.Property(e => e.ToAccount)
-                .HasMaxLength(32)
-                .IsRequired();
-            entity.Property(e => e.Amount)
-                .HasPrecision(18, 2)
-                .IsRequired();
-            entity.Property(e => e.RequestId)
-                .HasMaxLength(64)
-                .IsRequired();
-            entity.Property(e => e.CreatedAt)
-                .IsRequired();
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.RequestId).IsRequired();
+            entity.Property(t => t.Amount).IsRequired();
+            entity.Property(t => t.Status).IsRequired();
+
+            entity.HasIndex(t => t.RequestId)
+                .IsUnique(); // 🔥 critical for idempotency safety
         });
     }
 }

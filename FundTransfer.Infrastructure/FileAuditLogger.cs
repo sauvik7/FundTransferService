@@ -6,30 +6,37 @@ namespace FundTransfer.Infrastructure;
 
 public class FileAuditLogger(string filePath) : IAuditLogger
 {
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = false };
+    private readonly SemaphoreSlim _lock = new(1, 1);
+
+    private readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = false
+    };
 
     public async Task LogAsync(Transaction transaction, string outcome, string? error = null)
     {
-        var entry = new
+        var record = new
         {
-            Timestamp = DateTime.UtcNow,
-            TransactionId = transaction.Id,
-            FromAccount = transaction.FromAccount,
-            ToAccount = transaction.ToAccount,
-            transaction.Amount,
+            transaction.Id,
             transaction.RequestId,
+            transaction.FromAccount,
+            transaction.ToAccount,
+            transaction.Amount,
+            transaction.CreatedAt,
             Outcome = outcome,
             Error = error
         };
 
-        var line = JsonSerializer.Serialize(entry, _jsonOptions);
-        // Ensure directory exists then append a single-line JSON entry to the file
-        var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        var json = JsonSerializer.Serialize(record, _jsonOptions);
 
-        await File.AppendAllTextAsync(filePath, line + Environment.NewLine);
+        await _lock.WaitAsync();
+        try
+        {
+            await File.AppendAllTextAsync(filePath, json + Environment.NewLine);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 }

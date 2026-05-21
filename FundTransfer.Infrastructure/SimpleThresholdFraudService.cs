@@ -9,7 +9,7 @@ public class SimpleThresholdFraudService(decimal threshold) : IFraudService
     {
         if (request.Amount > threshold)
         {
-            reason = "Transaction limit exceeded";
+            reason = $"Amount exceeds allowed threshold ({threshold})";
             return true;
         }
 

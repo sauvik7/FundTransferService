@@ -1,111 +1,101 @@
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Interfaces;
 using FundTransfer.Domain.Entities;
+using FundTransfer.Domain.Services;
 
-namespace FundTransfer.Application.Services
+namespace FundTransfer.Application.Services;
+
+public class TransferService(
+    IAccountStore accountStore,
+    IOtpValidator otpValidator,
+    IIdempotencyStore idempotency,
+    IFraudService fraud,
+    IAuditLogger audit,
+    TransferDomainService domainService)
 {
-    public class TransferService(
-        IAccountStore accountStore,
-        IOtpValidator otpValidator,
-        IIdempotencyStore idempotencyStore,
-        IFraudService fraudService,
-        IAuditLogger auditLogger)
+    public async Task<(bool Success, string? Error)> ProcessAsync(TransferRequest request)
     {
-        private readonly IAccountStore _accountStore = accountStore;
-        private readonly IOtpValidator _otpValidator = otpValidator;
-        private readonly IIdempotencyStore _idempotencyStore = idempotencyStore;
-        private readonly IFraudService _fraudService = fraudService;
-        private readonly IAuditLogger _auditLogger = auditLogger;
+        // ✅ Idempotency
+        if (await idempotency.ExistsAsync(request.RequestId))
+            return (false, "Duplicate request");
 
-        public async Task<(bool Success, string? Error)> ProcessAsync(TransferRequest request)
+        // ✅ OTP validation
+        if (!otpValidator.Validate(request.Otp))
+            return (false, "Invalid OTP");
+
+        // ✅ Fraud detection
+        if (fraud.IsFraudulent(request, out var fraudReason))
+            return (false, fraudReason);
+
+        // ✅ Load accounts
+        var from = await accountStore.GetAsync(request.FromAccount);
+        if (from == null)
+            return (false, "Source account not found");
+
+        var existingTo = await accountStore.GetAsync(request.ToAccount);
+        var to = existingTo ?? new Account(request.ToAccount, 0m);
+
+        try
         {
-            // Defensive validation for domain invariants (keeps TransferService robust when called directly)
-            if (string.IsNullOrWhiteSpace(request.FromAccount) || string.IsNullOrWhiteSpace(request.ToAccount))
-            {
-                return await LogFailureAsync(request, "Invalid account details");
-            }
+            // ✅ All domain execution inside try
+            var tx = domainService.Execute(
+                from,
+                to,
+                request.RequestId,
+                request.Amount);
 
-            if (string.Equals(request.FromAccount, request.ToAccount, StringComparison.OrdinalIgnoreCase))
-            {
-                return await LogFailureAsync(request, "Sender and receiver cannot be same");
-            }
+            // ✅ Add destination account if newly created
+            if (existingTo == null)
+                await accountStore.AddAsync(to);
 
-            if (request.Amount <= 0)
-            {
-                return await LogFailureAsync(request, "Amount must be greater than zero");
-            }
+            // ✅ Persist changes
+            await accountStore.SaveChangesAsync();
 
-            // Core responsibilities only: OTP verification, idempotency, business rules, and account operations.
+            // ✅ Mark idempotent AFTER commit
+            await idempotency.MarkProcessedAsync(request.RequestId);
 
-            // OTP validation
-            if (!_otpValidator.Validate(request.Otp))
-            {
-                return await LogFailureAsync(request, "Invalid OTP");
-            }
-
-            // Account existence
-            if (!_accountStore.TryGetBalance(request.FromAccount, out decimal balance))
-            {
-                return await LogFailureAsync(request, "Source account not found");
-            }
-
-            // Balance validation
-            if (balance < request.Amount)
-            {
-                return await LogFailureAsync(request, "Insufficient balance");
-            }
-
-            // Idempotency
-            if (_idempotencyStore.IsProcessed(request.RequestId))
-            {
-                return await LogFailureAsync(request, "Duplicate request detected");
-            }
-
-            // Fraud check via injected service
-            if (_fraudService.IsFraudulent(request, out var reason))
-            {
-                return await LogFailureAsync(request, reason ?? "Transaction flagged as fraudulent");
-            }
-
-            // Perform transfer
-            _accountStore.EnsureAccountExists(request.ToAccount);
-            try
-            {
-                _accountStore.Transfer(request.FromAccount, request.ToAccount, request.Amount, request.RequestId);
-                _idempotencyStore.MarkProcessed(request.RequestId);
-
-                var transaction = new Transaction
-                {
-                    FromAccount = request.FromAccount,
-                    ToAccount = request.ToAccount,
-                    Amount = request.Amount,
-                    RequestId = request.RequestId
-                };
-
-                await _auditLogger.LogAsync(transaction, "Success");
-            }
-            catch (Exception)
-            {
-                return await LogFailureAsync(request, "Internal error");
-            }
-
-            await Task.Delay(50);
+            // ✅ Audit success
+            await audit.LogAsync(tx, "SUCCESS");
 
             return (true, null);
         }
-
-        private async Task<(bool Success, string? Error)> LogFailureAsync(TransferRequest request, string error)
+        catch (ArgumentException ex)
         {
-            var transaction = new Transaction
-            {
-                FromAccount = request.FromAccount,
-                ToAccount = request.ToAccount,
-                Amount = request.Amount,
-                RequestId = request.RequestId
-            };
+            await SafeAudit(request, ex);
 
-            await _auditLogger.LogAsync(transaction, "Failure", error);
-            return (false, error);
+            return (false, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            await SafeAudit(request, ex);
+
+            return (false, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            await SafeAudit(request, ex);
+
+            throw; // ✅ preserve system errors
+        }
+    }
+
+    // ✅ SAFE audit helper (never throws)
+    private async Task SafeAudit(TransferRequest request, Exception ex)
+    {
+        try
+        {
+            var tx = new Transaction(
+                request.RequestId,
+                string.IsNullOrWhiteSpace(request.FromAccount) ? "INVALID" : request.FromAccount,
+                string.IsNullOrWhiteSpace(request.ToAccount) ? "INVALID" : request.ToAccount,
+                request.Amount > 0 ? request.Amount : 1 // ensure valid
+            );
+
+            await audit.LogAsync(tx, "FAILED", ex.Message);
+        }
+        catch
+        {
+            // ✅ Final fallback: NEVER let audit break business flow
         }
     }
 }

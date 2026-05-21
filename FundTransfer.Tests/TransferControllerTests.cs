@@ -3,19 +3,15 @@ using FundTransfer.API.Controllers;
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Services;
 using FundTransfer.Domain.Entities;
+using FundTransfer.Domain.Services;
 using FundTransfer.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FundTransfer.Tests;
 
 public class TransferControllerTests
 {
-    public TransferControllerTests()
-    {
-    }
-
     private class TestOtpValidator : FundTransfer.Application.Interfaces.IOtpValidator
     {
         public bool Validate(string otp) => otp == "123456";
@@ -23,9 +19,8 @@ public class TransferControllerTests
 
     private class TestAuditLogger : FundTransfer.Application.Interfaces.IAuditLogger
     {
-        public Task LogAsync(FundTransfer.Domain.Entities.Transaction transaction, string outcome, string? error = null)
+        public Task LogAsync(Transaction transaction, string outcome, string? error = null)
         {
-            // no-op for controller tests
             return Task.CompletedTask;
         }
     }
@@ -54,29 +49,35 @@ public class TransferControllerTests
             .Options;
 
         var context = new PaymentsDbContext(options);
-        context.Database.EnsureCreated();
-        context.Accounts.AddRange(
-            new Account { AccountId = "ACC1", Balance = 250000m },
-            new Account { AccountId = "ACC2", Balance = 5000m });
+
+        var acc1 = new Account("ACC1", 250000m);
+        var acc2 = new Account("ACC2", 5000m);
+
+        context.Accounts.AddRange(acc1, acc2);
         context.SaveChanges();
 
         return new TransferService(
             new EfAccountStore(context),
             new TestOtpValidator(),
-            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService(1000m),
-            new TestAuditLogger());
+            new InMemoryIdempotencyStore(),
+            new SimpleThresholdFraudService(1000m),
+            new TestAuditLogger(),
+            new TransferDomainService() // ✅ REQUIRED
+        );
     }
 
     [Fact]
     public async Task Transfer_ReturnsOk_WhenRequestIsValid()
     {
+        // Arrange
         var service = CreateTransferService();
-        var controller = new TransferController(service, NullLogger<TransferController>.Instance);
+        var controller = new TransferController(service);
         var request = CreateRequest();
 
+        // Act
         var result = await controller.Transfer(request);
 
+        // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
         var json = JsonSerializer.Serialize(okResult.Value);
 
@@ -86,27 +87,34 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenServiceFails()
     {
+        // Arrange
         var service = CreateTransferService();
-        var controller = new TransferController(service, NullLogger<TransferController>.Instance);
+        var controller = new TransferController(service);
         var request = CreateRequest(requestId: "req-invalid-otp", otp: "000000");
 
+        // Act
         var result = await controller.Transfer(request);
 
-        var badResult = Assert.IsType<BadRequestObjectResult>(result);
-        var json = JsonSerializer.Serialize(badResult.Value);
+        // Assert
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
 
+        var json = JsonSerializer.Serialize(problem.Value);
         Assert.Contains("Invalid OTP", json);
     }
 
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenModelStateIsInvalid()
     {
+        // Arrange
         var service = CreateTransferService();
-        var controller = new TransferController(service, NullLogger<TransferController>.Instance);
+        var controller = new TransferController(service);
         controller.ModelState.AddModelError("FromAccount", "Required");
 
+        // Act
         var result = await controller.Transfer(CreateRequest());
 
-        Assert.IsType<BadRequestObjectResult>(result);
+        // Assert
+        Assert.IsType<ObjectResult>(result); // ValidationProblem returns ObjectResult
     }
 }

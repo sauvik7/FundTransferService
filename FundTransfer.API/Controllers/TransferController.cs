@@ -1,35 +1,35 @@
-using Microsoft.AspNetCore.Mvc;
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Services;
+using Microsoft.AspNetCore.Mvc;
 
-namespace FundTransfer.API.Controllers
+namespace FundTransfer.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class TransferController(TransferService service) : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class TransferController(TransferService transferService, ILogger<TransferController> logger) : ControllerBase
+    [HttpPost]
+    public async Task<IActionResult> Transfer([FromBody] TransferRequest request)
     {
-        private readonly TransferService _transferService = transferService;
-        private readonly ILogger<TransferController> _logger = logger;
-
-        [HttpPost]
-        public async Task<IActionResult> Transfer([FromBody] TransferRequest request)
+        if (!ModelState.IsValid)
         {
-            _logger.LogInformation("Processing transfer: {RequestId}", request.RequestId);
-
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var (Success, Error) = await _transferService.ProcessAsync(request);
-
-            if (!Success)
-            {
-                _logger.LogWarning("Transfer failed: {Error}", Error);
-                return BadRequest(new { error = Error });
-            }
-
-            return Ok(new { message = "Transfer successful" });
+            return ValidationProblem(ModelState);
         }
+
+        var (success, error) = await service.ProcessAsync(request);
+
+        if (!success)
+        {
+            return Problem(
+                detail: error,
+                statusCode: StatusCodes.Status400BadRequest
+            );
+        }
+
+        return Ok(new
+        {
+            message = "Transfer successful",
+            requestId = request.RequestId
+        });
     }
 }

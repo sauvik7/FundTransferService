@@ -1,71 +1,116 @@
 using FundTransfer.Application.Interfaces;
 using FundTransfer.Application.Services;
-using FundTransfer.Domain.Entities;
+using FundTransfer.Application.Validators;
+using FundTransfer.Domain.Services;
 using FundTransfer.Infrastructure;
-using FluentValidation.AspNetCore;
 using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
+// -----------------------
+// ✅ Explicitly bind BOTH HTTP + HTTPS
+// -----------------------
+builder.WebHost.UseUrls(
+    "http://localhost:5202",
+    "https://localhost:7202"
+);
+
+// -----------------------
+// Controllers + Validation
+// -----------------------
 builder.Services.AddControllers();
 builder.Services.AddFluentValidationAutoValidation();
-builder.Services.AddScoped<IValidator<FundTransfer.Application.DTOs.TransferRequest>, FundTransfer.Application.Validators.TransferRequestValidator>();
+builder.Services.AddScoped<IValidator<FundTransfer.Application.DTOs.TransferRequest>, TransferRequestValidator>();
+
+// -----------------------
+// Swagger
+// -----------------------
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// EF Core repository - use in-memory database instead of PostgreSQL
+// -----------------------
+// Database
+// -----------------------
 builder.Services.AddDbContext<PaymentsDbContext>(options =>
     options.UseInMemoryDatabase("FundTransferDb"));
 
+// -----------------------
+// Application Services
+// -----------------------
+builder.Services.AddScoped<TransferService>();
+builder.Services.AddScoped<TransferDomainService>();
+
+// -----------------------
+// Infrastructure
+// -----------------------
 builder.Services.AddScoped<IAccountStore, EfAccountStore>();
-
-// Idempotency and fraud services
-builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IIdempotencyStore, FundTransfer.Infrastructure.InMemoryIdempotencyStore>();
-builder.Services.Configure<FraudSettings>(builder.Configuration.GetSection("FraudSettings"));
-builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IFraudService>(sp =>
-{
-    var threshold = sp.GetRequiredService<IOptions<FraudSettings>>().Value.Threshold;
-    return new FundTransfer.Infrastructure.SimpleThresholdFraudService(threshold);
-});
-// Audit logger (file-based) - write to app content root
-builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IAuditLogger>(_ =>
-    new FundTransfer.Infrastructure.FileAuditLogger(Path.Combine(builder.Environment.ContentRootPath, "audit.log")));
-
-// Read OTP secret from configuration.
+builder.Services.AddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
 builder.Services.AddScoped<IOtpValidator, ConfigOtpValidator>();
 
-builder.Services.AddScoped<TransferService>();
+// Fraud config
+var fraudThreshold = builder.Configuration.GetValue<decimal>("FraudSettings:Threshold");
+builder.Services.AddSingleton<IFraudService>(new SimpleThresholdFraudService(fraudThreshold));
 
+// Audit logger
+builder.Services.AddSingleton<IAuditLogger>(sp =>
+{
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var path = Path.Combine(env.ContentRootPath, "audit.log");
+    return new FileAuditLogger(path);
+});
+
+// -----------------------
+// Build App
+// -----------------------
 var app = builder.Build();
 
+// -----------------------
 // Middleware
+// -----------------------
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+
+    app.UseSwaggerUI(c =>
+    {
+        // ✅ Always point Swagger to HTTPS endpoint
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "FundTransfer API V1");
+    });
 }
 
-app.UseHttpsRedirection();
+// ✅ Centralized exception handling endpoint
+app.UseExceptionHandler("/error");
+
+
+builder.WebHost.UseUrls("http://localhost:5202");
 
 app.UseAuthorization();
 
 app.MapControllers();
 
+// ✅ Optional: basic error endpoint (so ExceptionHandler works correctly)
+app.Map("/error", (HttpContext context) =>
+{
+    return Results.Problem("An unexpected error occurred");
+});
+
+// -----------------------
+// Seed Data (dev only)
+// -----------------------
 using (var scope = app.Services.CreateScope())
 {
-    var context = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
-    context.Database.EnsureCreated();
+    var db = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
 
-    if (!context.Accounts.Any())
+    if (!db.Accounts.Any())
     {
-        context.Accounts.AddRange(
-            new Account { AccountId = "ACC1", Balance = 1000m },
-            new Account { AccountId = "ACC2", Balance = 1000m }
+        db.Accounts.AddRange(
+            new FundTransfer.Domain.Entities.Account("ACC1", 10000),
+            new FundTransfer.Domain.Entities.Account("ACC2", 5000)
         );
-        context.SaveChanges();
+
+        db.SaveChanges();
     }
 }
 
