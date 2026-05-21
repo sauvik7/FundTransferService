@@ -2,9 +2,6 @@
 bin/
 obj/
 
-# VS Code settings
-.vscode/
-
 # User-specific files
 *.user
 *.suo

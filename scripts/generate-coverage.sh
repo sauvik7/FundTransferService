@@ -26,7 +26,7 @@ for project in "${test_projects[@]}"; do
   results_dir="$OUTPUT_DIR/$project_name"
   mkdir -p "$results_dir"
   echo "Running coverage for: $project"
-  dotnet test "$project" --no-restore --collect:"XPlat Code Coverage" --results-directory "$results_dir"
+  dotnet test "$project" --collect:"XPlat Code Coverage" --results-directory "$results_dir"
   echo "Coverage output saved to: $results_dir"
   echo
 done

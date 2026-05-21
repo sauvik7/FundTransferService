@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": ".NET Launch FundTransfer.API",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/FundTransfer.API/bin/Debug/net8.0/FundTransfer.API.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/FundTransfer.API",
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "justMyCode": true
+        }
+    ]
+}
