@@ -3,18 +3,11 @@ using FundTransfer.Domain.Entities;
 
 namespace FundTransfer.Infrastructure;
 
-public class EfAccountStore : IAccountStore
+public class EfAccountStore(PaymentsDbContext context) : IAccountStore
 {
-    private readonly PaymentsDbContext _context;
-
-    public EfAccountStore(PaymentsDbContext context)
-    {
-        _context = context;
-    }
-
     public bool TryGetBalance(string accountId, out decimal balance)
     {
-        var account = _context.Accounts.Find(accountId);
+        var account = context.Accounts.Find(accountId);
         if (account is null)
         {
             balance = 0m;
@@ -27,26 +20,26 @@ public class EfAccountStore : IAccountStore
 
     public void EnsureAccountExists(string accountId)
     {
-        var account = _context.Accounts.Find(accountId);
+        var account = context.Accounts.Find(accountId);
         if (account is not null)
         {
             return;
         }
 
-        _context.Accounts.Add(new Account
+        context.Accounts.Add(new Account
         {
             AccountId = accountId,
             Balance = 0m
         });
-        _context.SaveChanges();
+        context.SaveChanges();
     }
 
     public void Transfer(string fromAccount, string toAccount, decimal amount, string requestId)
     {
-        var sourceAccount = _context.Accounts.Find(fromAccount)
+        var sourceAccount = context.Accounts.Find(fromAccount)
             ?? throw new InvalidOperationException("Source account not found");
 
-        var destinationAccount = _context.Accounts.Find(toAccount);
+        var destinationAccount = context.Accounts.Find(toAccount);
         if (destinationAccount is null)
         {
             destinationAccount = new Account
@@ -54,13 +47,13 @@ public class EfAccountStore : IAccountStore
                 AccountId = toAccount,
                 Balance = 0m
             };
-            _context.Accounts.Add(destinationAccount);
+            context.Accounts.Add(destinationAccount);
         }
 
         sourceAccount.Balance -= amount;
         destinationAccount.Balance += amount;
 
-        _context.Transactions.Add(new Transaction
+        context.Transactions.Add(new Transaction
         {
             FromAccount = fromAccount,
             ToAccount = toAccount,
@@ -68,6 +61,6 @@ public class EfAccountStore : IAccountStore
             RequestId = requestId
         });
 
-        _context.SaveChanges();
+        context.SaveChanges();
     }
 }

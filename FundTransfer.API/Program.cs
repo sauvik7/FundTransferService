@@ -5,6 +5,7 @@ using FundTransfer.Infrastructure;
 using FluentValidation.AspNetCore;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,7 +24,12 @@ builder.Services.AddScoped<IAccountStore, EfAccountStore>();
 
 // Idempotency and fraud services
 builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IIdempotencyStore, FundTransfer.Infrastructure.InMemoryIdempotencyStore>();
-builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IFraudService>(_ => new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+builder.Services.Configure<FraudSettings>(builder.Configuration.GetSection("FraudSettings"));
+builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IFraudService>(sp =>
+{
+    var threshold = sp.GetRequiredService<IOptions<FraudSettings>>().Value.Threshold;
+    return new FundTransfer.Infrastructure.SimpleThresholdFraudService(threshold);
+});
 // Audit logger (file-based) - write to app content root
 builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IAuditLogger>(_ =>
     new FundTransfer.Infrastructure.FileAuditLogger(Path.Combine(builder.Environment.ContentRootPath, "audit.log")));

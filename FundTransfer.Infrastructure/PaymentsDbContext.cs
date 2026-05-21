@@ -3,13 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FundTransfer.Infrastructure;
 
-public class PaymentsDbContext : DbContext
+public class PaymentsDbContext(DbContextOptions<PaymentsDbContext> options) : DbContext(options)
 {
-    public PaymentsDbContext(DbContextOptions<PaymentsDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
 

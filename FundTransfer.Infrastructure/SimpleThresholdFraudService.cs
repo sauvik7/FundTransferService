@@ -3,7 +3,7 @@ using FundTransfer.Application.Interfaces;
 
 namespace FundTransfer.Infrastructure;
 
-public class SimpleThresholdFraudService(decimal threshold = 100000m) : IFraudService
+public class SimpleThresholdFraudService(decimal threshold) : IFraudService
 {
     public bool IsFraudulent(TransferRequest request, out string? reason)
     {
