@@ -1,7 +1,6 @@
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Services;
 using FundTransfer.Infrastructure;
-using Xunit;
 
 namespace FundTransfer.Tests;
 
@@ -11,7 +10,12 @@ public class TransferServiceTests
 
     public TransferServiceTests()
     {
-        _service = new TransferService(new InMemoryAccountStore());
+        _service = new TransferService(new InMemoryAccountStore(), new TestOtpValidator());
+    }
+
+    private class TestOtpValidator : FundTransfer.Application.Interfaces.IOtpValidator
+    {
+        public bool Validate(string otp) => otp == "123456";
     }
 
     private static TransferRequest CreateRequest(

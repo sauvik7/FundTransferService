@@ -1,11 +1,15 @@
 using FundTransfer.Application.Interfaces;
 using FundTransfer.Application.Services;
 using FundTransfer.Infrastructure;
+using FluentValidation.AspNetCore;
+using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddControllers();
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddScoped<IValidator<FundTransfer.Application.DTOs.TransferRequest>, FundTransfer.Application.Validators.TransferRequestValidator>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
