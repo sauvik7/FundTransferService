@@ -105,15 +105,7 @@ Swagger lets you explore the `POST /api/transfer` endpoint and send requests dir
 
 ### 1. SUCCESS CASE
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 500,
-  "requestId": "req-success",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -127,15 +119,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 2. INVALID OTP
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 500,
-  "requestId": "req-bad-otp",
-  "otp": "000000"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -149,15 +133,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 3. INSUFFICIENT BALANCE
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 20000,
-  "requestId": "req-low-balance",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -171,15 +147,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 4. DUPLICATE REQUEST (run twice)
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 100,
-  "requestId": "req-duplicate",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -193,15 +161,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 5. FRAUD LIMIT EXCEEDED
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 200000,
-  "requestId": "req-fraud",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -215,15 +175,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 6. SAME ACCOUNT TRANSFER
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC1",
-  "amount": 100,
-  "requestId": "req-same-account",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -237,15 +189,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 7. INVALID AMOUNT
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "ACC1",
-  "toAccount": "ACC2",
-  "amount": 0,
-  "requestId": "req-invalid-amount",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
@@ -259,15 +203,7 @@ curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/js
 
 ### 8. MISSING ACCOUNT
 
-```bash
-curl -X POST http://localhost:5202/api/transfer -H "Content-Type: application/json" -d '{
-  "fromAccount": "",
-  "toAccount": "ACC2",
-  "amount": 100,
-  "requestId": "req-missing-account",
-  "otp": "123456"
-}'
-```
+Request JSON:
 
 ```json
 {
