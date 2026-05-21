@@ -71,7 +71,7 @@ namespace FundTransfer.Application.Services
             _accountStore.EnsureAccountExists(request.ToAccount);
             try
             {
-                _accountStore.Transfer(request.FromAccount, request.ToAccount, request.Amount);
+                _accountStore.Transfer(request.FromAccount, request.ToAccount, request.Amount, request.RequestId);
                 _idempotencyStore.MarkProcessed(request.RequestId);
 
                 var transaction = new Transaction

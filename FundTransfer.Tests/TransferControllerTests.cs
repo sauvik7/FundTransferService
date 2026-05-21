@@ -2,8 +2,10 @@ using System.Text.Json;
 using FundTransfer.API.Controllers;
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Services;
+using FundTransfer.Domain.Entities;
 using FundTransfer.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FundTransfer.Tests;
@@ -45,15 +47,31 @@ public class TransferControllerTests
         };
     }
 
+    private static TransferService CreateTransferService()
+    {
+        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        var context = new PaymentsDbContext(options);
+        context.Database.EnsureCreated();
+        context.Accounts.AddRange(
+            new Account { AccountId = "ACC1", Balance = 250000m },
+            new Account { AccountId = "ACC2", Balance = 5000m });
+        context.SaveChanges();
+
+        return new TransferService(
+            new EfAccountStore(context),
+            new TestOtpValidator(),
+            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(1000m),
+            new TestAuditLogger());
+    }
+
     [Fact]
     public async Task Transfer_ReturnsOk_WhenRequestIsValid()
     {
-        var service = new TransferService(
-            new InMemoryAccountStore(),
-            new TestOtpValidator(),
-            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
-            new TestAuditLogger());
+        var service = CreateTransferService();
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest();
 
@@ -68,12 +86,7 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenServiceFails()
     {
-        var service = new TransferService(
-            new InMemoryAccountStore(),
-            new TestOtpValidator(),
-            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
-            new TestAuditLogger());
+        var service = CreateTransferService();
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest(requestId: "req-invalid-otp", otp: "000000");
 
@@ -88,12 +101,7 @@ public class TransferControllerTests
     [Fact]
     public async Task Transfer_ReturnsBadRequest_WhenModelStateIsInvalid()
     {
-        var service = new TransferService(
-            new InMemoryAccountStore(),
-            new TestOtpValidator(),
-            new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
-            new TestAuditLogger());
+        var service = CreateTransferService();
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         controller.ModelState.AddModelError("FromAccount", "Required");
 

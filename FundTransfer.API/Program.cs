@@ -1,8 +1,10 @@
 using FundTransfer.Application.Interfaces;
 using FundTransfer.Application.Services;
+using FundTransfer.Domain.Entities;
 using FundTransfer.Infrastructure;
 using FluentValidation.AspNetCore;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,8 +15,11 @@ builder.Services.AddScoped<IValidator<FundTransfer.Application.DTOs.TransferRequ
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Use InMemoryAccountStore for simplicity.
-builder.Services.AddSingleton<IAccountStore, InMemoryAccountStore>();
+// EF Core repository - use in-memory database instead of PostgreSQL
+builder.Services.AddDbContext<PaymentsDbContext>(options =>
+    options.UseInMemoryDatabase("FundTransferDb"));
+
+builder.Services.AddScoped<IAccountStore, EfAccountStore>();
 
 // Idempotency and fraud services
 builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IIdempotencyStore, FundTransfer.Infrastructure.InMemoryIdempotencyStore>();
@@ -27,7 +32,6 @@ builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IAuditLogger>(
 builder.Services.AddScoped<IOtpValidator, ConfigOtpValidator>();
 
 builder.Services.AddScoped<TransferService>();
-// TransferService depends on IIdempotencyStore and IFraudService now; DI will resolve them.
 
 var app = builder.Build();
 
@@ -43,5 +47,20 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<PaymentsDbContext>();
+    context.Database.EnsureCreated();
+
+    if (!context.Accounts.Any())
+    {
+        context.Accounts.AddRange(
+            new Account { AccountId = "ACC1", Balance = 1000m },
+            new Account { AccountId = "ACC2", Balance = 1000m }
+        );
+        context.SaveChanges();
+    }
+}
 
 app.Run();

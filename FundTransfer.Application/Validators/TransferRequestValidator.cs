@@ -13,10 +13,8 @@ public class TransferRequestValidator : AbstractValidator<TransferRequest>
 
         RuleFor(x => x.ToAccount)
             .NotEmpty().WithMessage("ToAccount is required")
-            .Matches("^[A-Z0-9]{1,32}$").WithMessage("ToAccount has invalid format");
-
-        RuleFor(x => x)
-            .Must(x => !string.Equals(x.FromAccount, x.ToAccount, StringComparison.OrdinalIgnoreCase))
+            .Matches("^[A-Z0-9]{1,32}$").WithMessage("ToAccount has invalid format")
+            .Must((request, toAccount) => !string.Equals(request.FromAccount, toAccount, StringComparison.OrdinalIgnoreCase))
             .WithMessage("Sender and receiver cannot be same");
 
         RuleFor(x => x.Amount)

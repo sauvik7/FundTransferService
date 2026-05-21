@@ -1,6 +1,8 @@
 using FundTransfer.Application.DTOs;
 using FundTransfer.Application.Services;
+using FundTransfer.Domain.Entities;
 using FundTransfer.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace FundTransfer.Tests;
 
@@ -10,11 +12,22 @@ public class TransferServiceTests
 
     public TransferServiceTests()
     {
+        var options = new DbContextOptionsBuilder<PaymentsDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        var context = new PaymentsDbContext(options);
+        context.Database.EnsureCreated();
+        context.Accounts.AddRange(
+            new Account { AccountId = "ACC1", Balance = 250000m },
+            new Account { AccountId = "ACC2", Balance = 5000m });
+        context.SaveChanges();
+
         _service = new TransferService(
-            new InMemoryAccountStore(),
+            new EfAccountStore(context),
             new TestOtpValidator(),
             new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(1000m),
             new TestAuditLogger());
     }
 
