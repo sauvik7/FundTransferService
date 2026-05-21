@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build",
+      "label": "Build Project",
       "type": "shell",
       "command": "dotnet",
       "args": [
@@ -18,10 +18,11 @@
       ],
       "presentation": {
         "reveal": "always"
-      }
+      },
+      "detail": "Perform a standard build of the project, compiling source code and generating necessary artifacts for development and testing."
     },
     {
-      "label": "clean",
+      "label": "Clean Project",
       "type": "shell",
       "command": "dotnet",
       "args": [
@@ -34,17 +35,21 @@
       ],
       "presentation": {
         "reveal": "always"
-      }
+      },
+      "detail": "Perform a standard clean of the project, removing build artifacts but keeping logs and test results."
     },
     {
-      "label": "deep clean",
+      "label": "Deep Clean",
       "type": "shell",
-      "command": "rm -rf */*/bin */*/obj */bin */obj && rm -rf **/TestResults **/coverage && rm -f FundTransfer.API/audit.log",
+      "command": "rm -rf **/bin **/obj **/TestResults **/coverage && rm -f FundTransfer.API/audit.log",
+      "dependsOn": [
+        "Clean Project"
+      ],
       "problemMatcher": [],
-      "detail": "Removes build artifacts, test results, coverage, and logs"
+      "detail": "Runs standard clean, then purges all bin/obj, test results, coverage directories, and logs."
     },
     {
-      "label": "run tests",
+      "label": "Run Tests",
       "type": "shell",
       "command": "dotnet",
       "args": [
@@ -61,10 +66,11 @@
       ],
       "presentation": {
         "reveal": "always"
-      }
+      },
+      "detail": "Run all unit tests in the project, using the latest build artifacts without restoring packages."
     },
     {
-      "label": "generate coverage",
+      "label": "Generate Coverage",
       "type": "shell",
       "command": "bash",
       "args": [
@@ -80,7 +86,8 @@
       ],
       "presentation": {
         "reveal": "always"
-      }
+      },
+      "detail": "Generate code coverage reports for the project."
     }
   ]
 }
