@@ -1,5 +1,10 @@
 # FundTransferService
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
+![.NET Version](https://img.shields.io/badge/.NET-8.0-blue)
+[![CI Build](https://github.com/sauvik7/FundTransferService/actions/workflows/ci.yml/badge.svg)](https://github.com/sauvik7/FundTransferService/actions)
+[![Codecov](https://codecov.io/gh/sauvik7/FundTransferService/branch/main/graph/badge.svg)](https://codecov.io/gh/sauvik7/FundTransferService)
+
 ## Overview
 
 FundTransferService is a .NET 8 Web API that simulates a simple fund transfer workflow with validation rules for OTP, balance, duplicate requests, fraud limits, same-account transfers, and missing account data.
