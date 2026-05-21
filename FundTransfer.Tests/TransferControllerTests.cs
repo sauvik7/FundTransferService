@@ -19,6 +19,15 @@ public class TransferControllerTests
         public bool Validate(string otp) => otp == "123456";
     }
 
+    private class TestAuditLogger : FundTransfer.Application.Interfaces.IAuditLogger
+    {
+        public Task LogAsync(FundTransfer.Domain.Entities.Transaction transaction, string outcome, string? error = null)
+        {
+            // no-op for controller tests
+            return Task.CompletedTask;
+        }
+    }
+
     private static TransferRequest CreateRequest(
         string fromAccount = "ACC1",
         string toAccount = "ACC2",
@@ -43,7 +52,8 @@ public class TransferControllerTests
             new InMemoryAccountStore(),
             new TestOtpValidator(),
             new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
+            new TestAuditLogger());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest();
 
@@ -62,7 +72,8 @@ public class TransferControllerTests
             new InMemoryAccountStore(),
             new TestOtpValidator(),
             new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
+            new TestAuditLogger());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         var request = CreateRequest(requestId: "req-invalid-otp", otp: "000000");
 
@@ -81,7 +92,8 @@ public class TransferControllerTests
             new InMemoryAccountStore(),
             new TestOtpValidator(),
             new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
+            new TestAuditLogger());
         var controller = new TransferController(service, NullLogger<TransferController>.Instance);
         controller.ModelState.AddModelError("FromAccount", "Required");
 

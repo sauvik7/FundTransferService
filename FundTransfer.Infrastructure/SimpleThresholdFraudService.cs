@@ -3,18 +3,11 @@ using FundTransfer.Application.Interfaces;
 
 namespace FundTransfer.Infrastructure;
 
-public class SimpleThresholdFraudService : IFraudService
+public class SimpleThresholdFraudService(decimal threshold = 100000m) : IFraudService
 {
-    private readonly decimal _threshold;
-
-    public SimpleThresholdFraudService(decimal threshold = 100000m)
-    {
-        _threshold = threshold;
-    }
-
     public bool IsFraudulent(TransferRequest request, out string? reason)
     {
-        if (request.Amount > _threshold)
+        if (request.Amount > threshold)
         {
             reason = "Transaction limit exceeded";
             return true;

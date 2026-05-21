@@ -14,12 +14,24 @@ public class TransferServiceTests
             new InMemoryAccountStore(),
             new TestOtpValidator(),
             new FundTransfer.Infrastructure.InMemoryIdempotencyStore(),
-            new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+            new FundTransfer.Infrastructure.SimpleThresholdFraudService(),
+            new TestAuditLogger());
     }
 
     private class TestOtpValidator : FundTransfer.Application.Interfaces.IOtpValidator
     {
         public bool Validate(string otp) => otp == "123456";
+    }
+
+    private class TestAuditLogger : FundTransfer.Application.Interfaces.IAuditLogger
+    {
+        public List<string> Entries { get; } = new();
+
+        public Task LogAsync(FundTransfer.Domain.Entities.Transaction transaction, string outcome, string? error = null)
+        {
+            Entries.Add($"{transaction.RequestId}:{outcome}:{error}");
+            return Task.CompletedTask;
+        }
     }
 
     private static TransferRequest CreateRequest(
@@ -48,6 +60,17 @@ public class TransferServiceTests
 
         Assert.True(Success);
         Assert.Null(Error);
+
+        // Verify audit logger recorded the transaction
+        var field = _service.GetType()
+            .GetField("_auditLogger", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        var testLogger = field?.GetValue(_service) as TestAuditLogger;
+
+        Assert.NotNull(testLogger);
+
+        Assert.Contains(testLogger!.Entries,
+            e => e.StartsWith(request.RequestId + ":Success") || e.Contains(request.RequestId));
     }
 
     [Fact]
@@ -59,6 +82,13 @@ public class TransferServiceTests
 
         Assert.False(Success);
         Assert.Equal("Invalid OTP", Error);
+
+        var field = _service.GetType()
+            .GetField("_auditLogger", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        var testLogger = field?.GetValue(_service) as TestAuditLogger;
+        Assert.NotNull(testLogger);
+        Assert.Contains(testLogger!.Entries, e => e == "req-bad-otp:Failure:Invalid OTP");
     }
 
     [Fact]

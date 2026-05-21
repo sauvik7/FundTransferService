@@ -19,6 +19,9 @@ builder.Services.AddSingleton<IAccountStore, InMemoryAccountStore>();
 // Idempotency and fraud services
 builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IIdempotencyStore, FundTransfer.Infrastructure.InMemoryIdempotencyStore>();
 builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IFraudService>(_ => new FundTransfer.Infrastructure.SimpleThresholdFraudService());
+// Audit logger (file-based) - write to app content root
+builder.Services.AddSingleton<FundTransfer.Application.Interfaces.IAuditLogger>(_ =>
+    new FundTransfer.Infrastructure.FileAuditLogger(Path.Combine(builder.Environment.ContentRootPath, "audit.log")));
 
 // Read OTP secret from configuration.
 builder.Services.AddScoped<IOtpValidator, ConfigOtpValidator>();
